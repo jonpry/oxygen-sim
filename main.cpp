@@ -98,6 +98,14 @@ int main(){
 	decout_type decout[4];
 	ratout_type ratout[4];
 	
+	//Load the data file
+	FILE* f = fopen("test.bin","r");
+	fseek(f, 0L, SEEK_END);
+	int32_t sz = ftell(f);
+	fseek(f, 0L, SEEK_END);
+	fread(imem,std::max(sz,32*1024),1,f);
+	fclose(f);	
+
 	uint32_t tick=0;
     	while(1){
 		//These 3 are the main fetch pipeline. Everything else is a slave to the instructions fetched here
@@ -107,7 +115,7 @@ int main(){
 
 		rat_tick(decout[0],decout[1],decout[2],decout[3],ratout);	
  
-		printf("%d\n",tick++);
+//		printf("%d\n",tick++);
    	}
     return 0;
 }
