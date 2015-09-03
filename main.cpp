@@ -31,11 +31,15 @@ void icache_tick(icin_type in, icout_type &out){
 	}
 }
 
+enum jump_states { jump_nospec,jump_rightspec,jump_wrongspec };
 void jump_tick(decout_type decin0, decout_type decin1, decout_type decin2, decout_type decin3, icin_type &out){
 	PIPELINE(decin0,2);
 	PIPELINE(decin1,2);
 	PIPELINE(decin2,2);
 	PIPELINE(decin3,2);
+
+	static uint32_t jump_state = jump_nospec;
+	static uint32_t spec_done = ~0;
 
 	decout_type decin[4] = {decin0,decin1,decin2,decin3};
 	if(out.valid)
@@ -46,7 +50,11 @@ void jump_tick(decout_type decin0, decout_type decin1, decout_type decin2, decou
 	//printf("in.valid: %d\n", decin0.valid);
 
 	for(int i=0; i < 4; i++){
-        	if(decin[i].valid && (decin[i].jump_reg || (decin[i].jump_reg == 0 && decin[i].isjump && decin[i].predict))){
+		if(decin[i].valid && decin[i].pc == spec_done){
+			spec_done = ~0;
+			jump_state = jump_rightspec;
+		}
+        	if(decin[i].valid && (decin[i].jump_reg || (decin[i].jump_reg == 0 && decin[i].isjump && decin[i].predict)) && jump_state != jump_wrongspec){
 			//Jumping to somewhere
 			if(decin[i].jump_reg){
 				out.pc = decin[i].target;
@@ -55,7 +63,13 @@ void jump_tick(decout_type decin0, decout_type decin1, decout_type decin2, decou
 				out.pc = decin[i].pc + decin[i].imm;
 				printf("Jump to: %X %X %X\n", out.pc,decin[i].pc,decin[i].imm);
 			}
-			return;
+			//TODO: more advanced stuff here. it's not even worth the fetch flush if branch target is sufficiently close
+			if(decin[i].pc == out.pc){
+				jump_state = jump_rightspec;
+				continue;
+			}
+			jump_state = jump_wrongspec;
+			spec_done = out.pc;
 		}
 	}
 }
@@ -106,12 +120,44 @@ void rat_tick(decout_type decin0, decout_type decin1, decout_type decin2, decout
 	}
 }
 
+void reserver_tick(ratout_type ratout0, ratout_type ratout1, ratout_type ratout2, ratout_type ratout3){
+	PIPELINE(ratout0,2);
+	PIPELINE(ratout1,2);
+	PIPELINE(ratout2,2);
+	PIPELINE(ratout3,2);
+
+	ratout_type ratout[4] = {ratout0,ratout1,ratout2,ratout3};
+	bool used_jump=0;
+	bool stall=0;
+
+	for(int i=0; i < 4; i++){
+		if(!ratout[i].decout.valid)
+			continue;
+		//Try to find an execution unit for every instruction
+		if(ratout[4].decout.isjump){
+			if(used_jump){
+				stall=1;
+				continue;
+			}
+			//Must go to EX3
+			used_jump = 1;
+			continue;
+		}
+
+		//if ld/store, target ex4 ex5
+		
+		//Must be ALU
+				
+	}
+}
+
 
 int main(){
 	icin_type icin;
 	icout_type icout;
 	decout_type decout[4];
 	ratout_type ratout[4];
+	reservation_station stations[5];
 	
 	//Load the data file
 	FILE* f = fopen("test.bin","r");
@@ -129,6 +175,7 @@ int main(){
 		jump_tick(decout[0],decout[1],decout[2],decout[3],icin);
 
 		rat_tick(decout[0],decout[1],decout[2],decout[3],ratout);	
+		reserver_tick(ratout[0],ratout[1],ratout[2],ratout[3]);
  
 //		printf("%d\n",tick++);
    	}

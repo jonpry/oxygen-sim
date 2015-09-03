@@ -46,5 +46,8 @@ struct ratout_type {
 	uint32_t rdold;
 };
 
+struct reservation_station {
+	
+};
 
 void decode_tick(icout_type in, decout_type (&out)[4]);
