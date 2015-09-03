@@ -20,7 +20,7 @@ enum opcode_type {opcode_load, opcode_op_imm, opcode_auipc, opcode_store, opcode
 enum instr_type_type {i_type,s_type,sb_type,u_type,uj_type,r_type,no_type};
 
 #define downto(x,u,d) (   (((x) << (31-(u))) >> (31 - (u)))>>(d) )
-#define sign_ex(x,b)  ( ((int32_t) ((x)<<(31-(b))))>>(31-(b))  )
+#define sign_ex(x,b)  ( ((int32_t) ((x)<<(32-(b))))>>(32-(b))  )
 
 struct icin_type {
 	icin_type(){valid=0;}

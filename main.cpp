@@ -10,7 +10,7 @@
 	Cycle "accurate" simulator for the Oxygen processor
 	CPU does not actually exist yet so how accurate can it be. 
 	This is to explore implementation realities. Some
-	of the black box modules have been implemented so there
+	of the black box modules have been implemented so their
 	hardware resources and latencies have been defined. 
 *************************************************************/
 
@@ -20,9 +20,10 @@ void icache_tick(icin_type in, icout_type &out){
 	PIPELINE(in,3);
 
 	out.valid=0;
-	if(in.valid)
+	if(in.valid){
 		out.valid = 0xF & (0xF << ((in.pc / 4) % 4));
-
+//		printf("out.valid: %X\n", out.valid);
+	}
 	in.pc = in.pc & 0x7FFF;
 	for(int i=0; i < 4; i++){
 		out.pc[i] = (((in.pc >> 2) & ~0x3)+i)<<2;
@@ -30,25 +31,33 @@ void icache_tick(icin_type in, icout_type &out){
 	}
 }
 
-void jump_tick(decout_type decin0, decout_type decin1, decout_type decin2, decout_type decin3, icin_type out){
+void jump_tick(decout_type decin0, decout_type decin1, decout_type decin2, decout_type decin3, icin_type &out){
 	PIPELINE(decin0,2);
 	PIPELINE(decin1,2);
 	PIPELINE(decin2,2);
 	PIPELINE(decin3,2);
 
 	decout_type decin[4] = {decin0,decin1,decin2,decin3};
+	if(out.valid)
+		out.pc = (out.pc & ~0xF) + 0x10;
+
+	out.valid = 1;
+
+	//printf("in.valid: %d\n", decin0.valid);
 
 	for(int i=0; i < 4; i++){
         	if(decin[i].valid && (decin[i].jump_reg || (decin[i].jump_reg == 0 && decin[i].isjump && decin[i].predict))){
 			//Jumping to somewhere
-			if(decin[i].jump_reg)
+			if(decin[i].jump_reg){
 				out.pc = decin[i].target;
-			else
+				printf("RJump to: %X\n", out.pc);
+			}else{
 				out.pc = decin[i].pc + decin[i].imm;
+				printf("Jump to: %X %X %X\n", out.pc,decin[i].pc,decin[i].imm);
+			}
 			return;
 		}
 	}
-	out.pc = (out.pc & ~0xF) + 0x10;
 }
 
 template <typename T> 
@@ -59,6 +68,8 @@ constexpr std::deque<T>  init_fifo() {
     return ret;
 }
 
+//TODO: this initialization is a bit weird. it starts with 32 registers allocated but since startup has all contents
+//undefined it is unclear if this is needed. Could map everything to 0. but must make sure 0 reg is never freed. 
 static uint32_t rat[32] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31};
 void rat_tick(decout_type decin0, decout_type decin1, decout_type decin2, decout_type decin3, ratout_type (&out)[4]){
 	PIPELINE(decin0,2);
@@ -69,6 +80,10 @@ void rat_tick(decout_type decin0, decout_type decin1, decout_type decin2, decout
 	static std::deque<uint32_t> rat_fifo = init_fifo<uint32_t>();
 	
 	decout_type decin[4] = {decin0,decin1,decin2,decin3};
+
+	//TODO: for now nobody is returning anything to rat so we will have to quit
+	if(rat_fifo.size() < 4)
+		exit(0);
 
 	//Just copy the whole thing to get control signals
 	for(int i=0; i < 4; i++)
@@ -102,8 +117,8 @@ int main(){
 	FILE* f = fopen("test.bin","r");
 	fseek(f, 0L, SEEK_END);
 	int32_t sz = ftell(f);
-	fseek(f, 0L, SEEK_END);
-	fread(imem,std::max(sz,32*1024),1,f);
+	fseek(f, 0L, SEEK_SET);
+	fread(imem,std::min(sz,32*1024),1,f);
 	fclose(f);	
 
 	uint32_t tick=0;

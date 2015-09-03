@@ -40,7 +40,7 @@ void decode(uint32_t instr, uint32_t pc, uint32_t valid, decout_type &decout){
             default: instr_type = no_type;
         }
 
-        if(instr & 0x3 != 0b11)
+        if((instr & 0x3) != 0b11)	
             instr_type = no_type;
         
         imm = 0;
@@ -48,12 +48,12 @@ void decode(uint32_t instr, uint32_t pc, uint32_t valid, decout_type &decout){
         switch(instr_type){
             case i_type: imm = sinstr >> 20; break;
             case s_type: imm = s_foo; break;
-            case sb_type: imm = sign_ex((downto(instr,31,31) << 12)  | (downto(instr,7,7) << 11) | (downto(instr,30,25) << 5) | (downto(instr,11,8) << 1),13);
+            case sb_type: imm = sign_ex((downto(instr,31,31) << 12)  | (downto(instr,7,7) << 11) | (downto(instr,30,25) << 5) | (downto(instr,11,8) << 1),13); break;
             case u_type: imm = instr & ~((1<<12) - 1); break;
-            case uj_type: imm = sign_ex((downto(instr,31,31) << 20) | (downto(instr,19,12) << 12) | (downto(instr,20,20) << 11) | (downto(instr,30,21) << 1),21);
+            case uj_type: imm = sign_ex((downto(instr,31,31) << 20) | (downto(instr,19,12) << 12) | (downto(instr,20,20) << 11) | (downto(instr,30,21) << 1),21); break;
             default: imm = 0; 
         }
-        
+//       printf("%d %X %X %X\n", imm, instr, instr_type,(downto(instr,31,31) << 20) | (downto(instr,19,12) << 12) | (downto(instr,20,20) << 11) | (downto(instr,30,21) << 1)); 
         //Signal that branch predictor is going to have to make a choice
             decout.isjump = opcode == opcode_jalr || opcode == opcode_jal || opcode == opcode_branch || opcode == opcode_sys;
             decout.jump_reg = opcode == opcode_jalr;
@@ -63,14 +63,16 @@ void decode(uint32_t instr, uint32_t pc, uint32_t valid, decout_type &decout){
            decout.uses_rs1 = rs1 != 0 && instr_type != u_type && instr_type != uj_type && instr_type != no_type;
            decout.uses_rs2 = rs2 != 0 && instr_type != u_type && instr_type != uj_type && instr_type != i_type && instr_type != no_type;
         
-           decout.invalid_op = opcode == opcode_invalid && valid == 1;
+           decout.invalid_op = instr_type == no_type && valid == 1;
         
-           decout.pc <= pc;
-           decout.rd <= rd;
-           decout.rs1 <= rs1;
-           decout.rs2 <= rs2;
-           decout.imm <= imm;
-           decout.valid <= opcode != opcode_invalid && valid == 1;
+           decout.pc = pc;
+           decout.rd = rd;
+           decout.rs1 = rs1;
+           decout.rs2 = rs2;
+           decout.imm = imm;
+           decout.valid = instr_type != no_type && valid == 1;
+	  // printf("valid: %X %X %d %d %d %d\n", instr, pc, decout.valid, valid, instr_type, no_type);
+
 }
 
 static uint32_t target_mem[4][16];
@@ -89,7 +91,6 @@ void decode_tick(icout_type in, decout_type (&out)[4]){
 	for(int i=0; i < 4; i++){
 		decode(in.instr[i],in.pc[i],(in.valid>>i)&1,out[i]);
 		jump_target(in.pc[i],out[i],i);
-
 	}
 }
 
